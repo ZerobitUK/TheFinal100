@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Road to Permanent Chastity</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>The 100 Countdown</h1>
+            <p>The Road to Permanent Chastity</p>
+        </header>
+
+        <div class="stats-container">
+            <div class="stat-card">
+                <span class="label">Total Orgasms</span>
+                <span id="total-count" class="value">0 / 100</span>
+            </div>
+            <div class="stat-card">
+                <span class="label">Current Level</span>
+                <span id="level-display" class="value">1</span>
+            </div>
+        </div>
+
+        <div class="status-box">
+            <h2 id="status-title">Initialising...</h2>
+            <p id="status-desc">Checking your progress...</p>
+        </div>
+
+        <div class="actions">
+            <button id="roll-btn" class="primary-btn" onclick="game.handleRoll()">Roll Daily Die</button>
+            <button id="coin-btn" class="primary-btn hidden" onclick="game.flipFinalCoin()">Flip Final Coin</button>
+        </div>
+
+        <div class="log-section">
+            <h3>Recent History</h3>
+            <div id="history-log" class="log-entries">
+                </div>
+        </div>
+        
+        <button class="reset-btn" onclick="game.confirmReset()">Reset Game (Caution)</button>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
