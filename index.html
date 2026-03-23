@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Road to Permanent Chastity</title>
+    <title>The 100 Countdown</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,9 +13,9 @@
             <p>The Road to Permanent Chastity</p>
         </header>
 
-        <div class="stats-container">
+        <div class="stats-grid">
             <div class="stat-card">
-                <span class="label">Total Orgasms</span>
+                <span class="label">Orgasms Counted</span>
                 <span id="total-count" class="value">0 / 100</span>
             </div>
             <div class="stat-card">
@@ -24,23 +24,35 @@
             </div>
         </div>
 
-        <div class="status-box">
+        <div id="status-container" class="status-box">
             <h2 id="status-title">Initialising...</h2>
-            <p id="status-desc">Checking your progress...</p>
+            <p id="status-desc">Calculating your next milestone.</p>
         </div>
 
         <div class="actions">
             <button id="roll-btn" class="primary-btn" onclick="game.handleRoll()">Roll Daily Die</button>
-            <button id="coin-btn" class="primary-btn hidden" onclick="game.flipFinalCoin()">Flip Final Coin</button>
+            <button id="claim-btn" class="primary-btn hidden" onclick="game.handleScheduled()">Claim Scheduled Orgasm</button>
+            <button id="coin-btn" class="primary-btn hidden" onclick="game.flipFinalCoin()">Final Coin Flip</button>
+            
+            <div class="sim-section">
+                <button class="secondary-btn" onclick="game.runSimulation()">Run Entire Game Simulation</button>
+            </div>
+        </div>
+
+        <div id="sim-results" class="hidden">
+            <h3>Simulation Forecast</h3>
+            <div id="sim-summary"></div>
+            <div id="sim-log" class="log-entries"></div>
         </div>
 
         <div class="log-section">
-            <h3>Recent History</h3>
-            <div id="history-log" class="log-entries">
-                </div>
+            <h3>History Log</h3>
+            <div id="history-log" class="log-entries"></div>
         </div>
         
-        <button class="reset-btn" onclick="game.confirmReset()">Reset Game (Caution)</button>
+        <footer>
+            <button class="reset-link" onclick="game.confirmReset()">Reset All Progress</button>
+        </footer>
     </div>
     <script src="script.js"></script>
 </body>
