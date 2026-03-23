@@ -7,114 +7,175 @@ const game = {
     },
 
     init() {
-        const saved = localStorage.getItem('chastity_game_data');
+        const saved = localStorage.getItem('chastity_game_data_final');
         if (saved) this.state = JSON.parse(saved);
         this.updateUI();
     },
 
     save() {
-        localStorage.setItem('chastity_game_data', JSON.stringify(this.state));
+        localStorage.setItem('chastity_game_data_final', JSON.stringify(this.state));
     },
 
-    calculateLevel() {
-        return Math.min(10, Math.floor(this.state.totalOrgasms / 10) + 1);
+    getLevel(count) {
+        return Math.min(10, Math.floor(count / 10) + 1);
     },
 
-    // Handles the "minus-one" logic for months
     getNextMonthDate(date, months) {
         let d = new Date(date);
         d.setMonth(d.getMonth() + months);
-        d.setDate(d.getDate() - 1);
+        d.setDate(d.getDate() - 1); // UK "minus-one" logic
         return d;
+    },
+
+    getWaitPeriod(level, type) {
+        const waits = {
+            3: { full: { v: 7, u: 'd' } },
+            4: { full: { v: 14, u: 'd' }, ruined: { v: 7, u: 'd' } },
+            5: { full: { v: 21, u: 'd' }, ruined: { v: 14, u: 'd' } },
+            6: { full: { v: 1, u: 'm' }, ruined: { v: 21, u: 'd' } },
+            7: { full: { v: 42, u: 'd' }, ruined: { v: 1, u: 'm' } },
+            8: { full: { v: 2, u: 'm' }, ruined: { v: 42, u: 'd' } },
+            10: { ruined: { v: 3, u: 'm' } }
+        };
+        return waits[level] ? waits[level][type] : null;
     },
 
     handleRoll() {
         const roll = Math.floor(Math.random() * 6) + 1;
-        const level = this.calculateLevel();
+        const level = this.getLevel(this.state.totalOrgasms);
         let outcome = "No orgasm";
-        let waitTime = null;
+        let wait = null;
 
-        if (roll === 5) { // Ruined
-            outcome = "Ruined Orgasm";
-            this.state.totalOrgasms++;
-            waitTime = this.getWaitPeriod(level, "ruined");
-        } else if (roll === 6) { // Full
-            outcome = "Full Orgasm";
-            this.state.totalOrgasms++;
-            waitTime = this.getWaitPeriod(level, "full");
-        }
+        if (roll === 5) { outcome = "Ruined Orgasm"; this.state.totalOrgasms++; wait = this.getWaitPeriod(level, 'ruined'); }
+        if (roll === 6) { outcome = "Full Orgasm"; this.state.totalOrgasms++; wait = this.getWaitPeriod(level, 'full'); }
 
-        // Set next roll date
-        let nextDate = new Date();
-        if (waitTime) {
-            if (waitTime.unit === 'days') nextDate.setDate(nextDate.getDate() + waitTime.value);
-            if (waitTime.unit === 'months') nextDate = this.getNextMonthDate(nextDate, waitTime.value);
+        this.applyWait(wait);
+        this.logAction(outcome, roll);
+    },
+
+    handleScheduled() {
+        const level = this.getLevel(this.state.totalOrgasms);
+        this.state.totalOrgasms++;
+        let wait = (level === 10) ? { v: 3, u: 'm' } : null; 
+        this.applyWait(wait);
+        this.logAction("Scheduled Orgasm", "N/A");
+    },
+
+    applyWait(wait) {
+        let next = new Date();
+        if (wait) {
+            if (wait.u === 'd') next.setDate(next.getDate() + wait.v);
+            if (wait.u === 'm') next = this.getNextMonthDate(next, wait.v);
         } else {
-            nextDate.setDate(nextDate.getDate() + 1); // Standard daily roll
+            next.setDate(next.getDate() + 1);
         }
+        this.state.nextAllowedRoll = next.getTime();
+        this.save();
+        this.updateUI();
+    },
 
-        this.state.nextAllowedRoll = nextDate.getTime();
+    logAction(outcome, roll) {
         this.state.history.push({
             date: new Date().toLocaleDateString('en-GB'),
             roll: roll,
             outcome: outcome
         });
-
         this.save();
         this.updateUI();
     },
 
-    getWaitPeriod(level, type) {
-        if (level === 3 && type === 'full') return { value: 7, unit: 'days' };
-        if (level === 4) return type === 'full' ? { value: 14, unit: 'days' } : { value: 7, unit: 'days' };
-        if (level === 5) return type === 'full' ? { value: 21, unit: 'days' } : { value: 14, unit: 'days' };
-        if (level === 6) return type === 'full' ? { value: 1, unit: 'months' } : { value: 21, unit: 'days' };
-        if (level === 7) return type === 'full' ? { value: 42, unit: 'days' } : { value: 1, unit: 'months' };
-        if (level === 8) return type === 'full' ? { value: 2, unit: 'months' } : { value: 42, unit: 'days' };
-        return null;
-    },
-
     updateUI() {
-        const now = new Date().getTime();
-        const level = this.calculateLevel();
+        const now = new Date();
+        const level = this.getLevel(this.state.totalOrgasms);
+        const nextDate = new Date(this.state.nextAllowedRoll);
         
         document.getElementById('total-count').innerText = `${this.state.totalOrgasms} / 100`;
         document.getElementById('level-display').innerText = level;
 
-        const btn = document.getElementById('roll-btn');
-        const title = document.getElementById('status-title');
-        const desc = document.getElementById('status-desc');
+        const rollBtn = document.getElementById('roll-btn');
+        const claimBtn = document.getElementById('claim-btn');
+        const statusTitle = document.getElementById('status-title');
+        const statusDesc = document.getElementById('status-desc');
 
         if (this.state.totalOrgasms >= 100) {
-            title.innerText = "Permanent Chastity";
-            desc.innerText = "The journey is complete.";
-            btn.classList.add('hidden');
-        } else if (this.state.nextAllowedRoll && now < this.state.nextAllowedRoll) {
-            const nextDate = new Date(this.state.nextAllowedRoll).toLocaleDateString('en-GB');
-            title.innerText = "Waiting Period";
-            desc.innerText = `You may roll again on ${nextDate}`;
-            btn.disabled = true;
-        } else {
-            title.innerText = "Ready to Roll";
-            desc.innerText = "Standard d6 rules apply for your level.";
-            btn.disabled = false;
+            statusTitle.innerText = "Permanent Chastity";
+            statusDesc.innerText = "The road has ended.";
+            rollBtn.classList.add('hidden');
+            return;
         }
 
-        // Display history
-        const log = document.getElementById('history-log');
-        log.innerHTML = this.state.history.slice().reverse().map(entry => `
-            <div class="log-entry">
-                <strong>${entry.date}</strong>: Rolled ${entry.roll} - ${entry.outcome}
-            </div>
-        `).join('');
+        const isWaiting = this.state.nextAllowedRoll && now < nextDate;
+
+        if (level === 9) {
+            rollBtn.classList.add('hidden');
+            claimBtn.classList.remove('hidden');
+            claimBtn.disabled = isWaiting || now.getDate() !== 31;
+            statusTitle.innerText = "Level 9: Scheduled";
+            statusDesc.innerText = isWaiting ? `Waiting until ${nextDate.toLocaleDateString('en-GB')}` : "Available only on the 31st.";
+        } else if (level === 10) {
+            rollBtn.classList.add('hidden');
+            claimBtn.classList.remove('hidden');
+            claimBtn.disabled = isWaiting;
+            statusTitle.innerText = "Level 10: The Final Nine";
+            statusDesc.innerText = isWaiting ? `Locked until ${nextDate.toLocaleDateString('en-GB')}` : "One ruined orgasm available.";
+        } else {
+            rollBtn.disabled = isWaiting;
+            statusTitle.innerText = isWaiting ? "Locked" : "Ready";
+            statusDesc.innerText = isWaiting ? `Next roll: ${nextDate.toLocaleDateString('en-GB')}` : "Roll your daily die.";
+        }
+
+        document.getElementById('history-log').innerHTML = this.state.history.slice().reverse().map(h => 
+            `<div>${h.date}: ${h.outcome} (Roll: ${h.roll})</div>`
+        ).join('');
     },
 
-    confirmReset() {
-        if (confirm("Are you sure you want to reset your progress? This cannot be undone.")) {
-            localStorage.clear();
-            location.reload();
+    runSimulation() {
+        let simCount = 0;
+        let simDate = new Date();
+        const start = new Date(simDate);
+        let nextRoll = new Date(simDate);
+        let simLog = [];
+
+        while (simCount < 100) {
+            let lvl = this.getLevel(simCount);
+            if (simDate >= nextRoll) {
+                if (lvl === 10) {
+                    simCount++;
+                    simLog.push(`${simDate.toLocaleDateString('en-GB')}: Final Countdown #${simCount}`);
+                    simDate.setMonth(simDate.getMonth() + 3);
+                    nextRoll = new Date(simDate);
+                } else if (lvl === 9) {
+                    if (simDate.getDate() === 31) {
+                        simCount++;
+                        simLog.push(`${simDate.toLocaleDateString('en-GB')}: Scheduled 31st Orgasm`);
+                        simDate.setDate(simDate.getDate() + 1);
+                        nextRoll = new Date(simDate);
+                    }
+                } else {
+                    const roll = Math.floor(Math.random() * 6) + 1;
+                    if (roll >= 5) {
+                        simCount++;
+                        const type = roll === 6 ? 'full' : 'ruined';
+                        simLog.push(`${simDate.toLocaleDateString('en-GB')}: Level ${lvl} ${type.toUpperCase()}`);
+                        let wait = this.getWaitPeriod(lvl, type);
+                        if (wait) {
+                            if (wait.u === 'd') simDate.setDate(simDate.getDate() + wait.v);
+                            if (wait.u === 'm') simDate = this.getNextMonthDate(simDate, wait.v);
+                        }
+                        nextRoll = new Date(simDate);
+                    }
+                }
+            }
+            simDate.setDate(simDate.getDate() + 1);
         }
-    }
+
+        const years = ((simDate - start) / (1000 * 60 * 60 * 24 * 365)).toFixed(1);
+        document.getElementById('sim-results').classList.remove('hidden');
+        document.getElementById('sim-summary').innerText = `Simulation Complete: ${years} Years. Permanent Chastity on ${simDate.toLocaleDateString('en-GB')}`;
+        document.getElementById('sim-log').innerHTML = simLog.reverse().map(l => `<div>${l}</div>`).join('');
+    },
+
+    confirmReset() { if (confirm("Reset everything?")) { localStorage.clear(); location.reload(); } }
 };
 
 game.init();
