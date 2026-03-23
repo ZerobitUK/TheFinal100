@@ -4,7 +4,53 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The 100 Countdown</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --bg: #0b0b0e;
+            --card: #16161d;
+            --accent: #bb86fc;
+            --text: #e1e1e6;
+            --dim: #9494a5;
+            --danger: #ff5555;
+            --success: #50fa7b;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container { width: 100%; max-width: 450px; }
+        header { text-align: center; margin-bottom: 30px; }
+        h1 { margin: 0; font-size: 1.8rem; letter-spacing: 1px; color: var(--accent); }
+
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .stat-card { background: var(--card); padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #2a2a35; }
+        .label { display: block; font-size: 0.75rem; color: var(--dim); text-transform: uppercase; margin-bottom: 5px; }
+        .value { font-size: 1.3rem; font-weight: bold; }
+
+        .status-box { background: var(--card); padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 25px; border-left: 5px solid var(--accent); }
+        .status-box h2 { margin-top: 0; font-size: 1.4rem; }
+
+        .primary-btn { width: 100%; padding: 16px; border-radius: 8px; border: none; background: var(--accent); color: #000; font-weight: bold; font-size: 1rem; cursor: pointer; margin-bottom: 15px; }
+        .primary-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+        .secondary-btn { width: 100%; padding: 10px; background: transparent; border: 1px solid var(--accent); color: var(--accent); border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: 0.2s; }
+        .secondary-btn:hover { background: rgba(187, 134, 252, 0.1); }
+
+        .log-section, #sim-results { background: #000; padding: 15px; border-radius: 10px; margin-top: 20px; }
+        .log-entries { max-height: 250px; overflow-y: auto; font-size: 0.85rem; color: var(--dim); line-height: 1.6; border-top: 1px solid #222; padding-top: 10px; }
+        .hidden { display: none; }
+
+        #sim-summary { color: var(--success); font-weight: bold; margin-bottom: 10px; padding: 10px; background: rgba(80, 250, 123, 0.1); border-radius: 5px; }
+        footer { margin-top: 30px; text-align: center; }
+        .reset-link { background: none; border: none; color: #444; font-size: 0.8rem; cursor: pointer; }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -32,10 +78,9 @@
         <div class="actions">
             <button id="roll-btn" class="primary-btn" onclick="game.handleRoll()">Roll Daily Die</button>
             <button id="claim-btn" class="primary-btn hidden" onclick="game.handleScheduled()">Claim Scheduled Orgasm</button>
-            <button id="coin-btn" class="primary-btn hidden" onclick="game.flipFinalCoin()">Final Coin Flip</button>
             
             <div class="sim-section">
-                <button class="secondary-btn" onclick="game.runSimulation()">Run Entire Game Simulation</button>
+                <button id="run-sim-btn" class="secondary-btn" onclick="game.runSimulation()">Run Entire Game Simulation</button>
             </div>
         </div>
 
@@ -54,6 +99,202 @@
             <button class="reset-link" onclick="game.confirmReset()">Reset All Progress</button>
         </footer>
     </div>
-    <script src="script.js"></script>
+
+    <script>
+    const game = {
+        state: {
+            totalOrgasms: 0,
+            nextAllowedRoll: null,
+            history: [],
+        },
+
+        init() {
+            const saved = localStorage.getItem('chastity_game_v2');
+            if (saved) this.state = JSON.parse(saved);
+            this.updateUI();
+        },
+
+        save() {
+            localStorage.setItem('chastity_game_v2', JSON.stringify(this.state));
+        },
+
+        getLevel(count) {
+            return Math.min(10, Math.floor(count / 10) + 1);
+        },
+
+        getNextMonthDate(date, months) {
+            let d = new Date(date);
+            d.setMonth(d.getMonth() + months);
+            d.setDate(d.getDate() - 1);
+            return d;
+        },
+
+        getWaitPeriod(level, type) {
+            const waits = {
+                3: { full: { v: 7, u: 'd' } },
+                4: { full: { v: 14, u: 'd' }, ruined: { v: 7, u: 'd' } },
+                5: { full: { v: 21, u: 'd' }, ruined: { v: 14, u: 'd' } },
+                6: { full: { v: 1, u: 'm' }, ruined: { v: 21, u: 'd' } },
+                7: { full: { v: 42, u: 'd' }, ruined: { v: 1, u: 'm' } },
+                8: { full: { v: 2, u: 'm' }, ruined: { v: 42, u: 'd' } }
+            };
+            return (waits[level] && waits[level][type]) ? waits[level][type] : null;
+        },
+
+        handleRoll() {
+            const roll = Math.floor(Math.random() * 6) + 1;
+            const level = this.getLevel(this.state.totalOrgasms);
+            let outcome = "No orgasm";
+            let wait = null;
+
+            if (roll === 5) { outcome = "Ruined Orgasm"; this.state.totalOrgasms++; wait = this.getWaitPeriod(level, 'ruined'); }
+            else if (roll === 6) { outcome = "Full Orgasm"; this.state.totalOrgasms++; wait = this.getWaitPeriod(level, 'full'); }
+
+            this.applyWait(wait);
+            this.logAction(outcome, roll);
+        },
+
+        handleScheduled() {
+            const level = this.getLevel(this.state.totalOrgasms);
+            this.state.totalOrgasms++;
+            let wait = (level === 10) ? { v: 3, u: 'm' } : null;
+            this.applyWait(wait);
+            this.logAction("Scheduled Orgasm", "N/A");
+        },
+
+        applyWait(wait) {
+            let next = new Date();
+            if (wait) {
+                if (wait.u === 'd') next.setDate(next.getDate() + wait.v);
+                if (wait.u === 'm') next = this.getNextMonthDate(next, wait.v);
+            } else {
+                next.setDate(next.getDate() + 1);
+            }
+            this.state.nextAllowedRoll = next.getTime();
+            this.save();
+        },
+
+        logAction(outcome, roll) {
+            this.state.history.push({
+                date: new Date().toLocaleDateString('en-GB'),
+                roll: roll,
+                outcome: outcome
+            });
+            this.save();
+            this.updateUI();
+        },
+
+        updateUI() {
+            const now = new Date();
+            const level = this.getLevel(this.state.totalOrgasms);
+            const nextDate = new Date(this.state.nextAllowedRoll);
+            
+            document.getElementById('total-count').innerText = `${this.state.totalOrgasms} / 100`;
+            document.getElementById('level-display').innerText = level;
+
+            const rollBtn = document.getElementById('roll-btn');
+            const claimBtn = document.getElementById('claim-btn');
+            const statusTitle = document.getElementById('status-title');
+            const statusDesc = document.getElementById('status-desc');
+
+            if (this.state.totalOrgasms >= 100) {
+                statusTitle.innerText = "Permanent Chastity";
+                statusDesc.innerText = "Congratulations. Your bank is empty.";
+                rollBtn.classList.add('hidden');
+                claimBtn.classList.add('hidden');
+                return;
+            }
+
+            const isWaiting = this.state.nextAllowedRoll && now < nextDate;
+
+            if (level === 9) {
+                rollBtn.classList.add('hidden');
+                claimBtn.classList.remove('hidden');
+                const is31st = now.getDate() === 31;
+                claimBtn.disabled = isWaiting || !is31st;
+                statusTitle.innerText = "Level 9: Monthly 31st";
+                statusDesc.innerText = isWaiting ? `Wait until ${nextDate.toLocaleDateString('en-GB')}` : (is31st ? "Available Now!" : "Only available on the 31st.");
+            } else if (level === 10) {
+                rollBtn.classList.add('hidden');
+                claimBtn.classList.remove('hidden');
+                claimBtn.disabled = isWaiting;
+                statusTitle.innerText = "Level 10: Final Countdown";
+                statusDesc.innerText = isWaiting ? `Locked until ${nextDate.toLocaleDateString('en-GB')}` : "One ruined orgasm available.";
+            } else {
+                rollBtn.disabled = isWaiting;
+                statusTitle.innerText = isWaiting ? "Locked" : "Ready";
+                statusDesc.innerText = isWaiting ? `Next roll: ${nextDate.toLocaleDateString('en-GB')}` : "Roll your daily d6.";
+            }
+
+            document.getElementById('history-log').innerHTML = this.state.history.slice().reverse().map(h => 
+                `<div style="padding:4px 0; border-bottom:1px solid #111;">${h.date}: ${h.outcome} (Roll: ${h.roll})</div>`
+            ).join('');
+        },
+
+        runSimulation() {
+            const btn = document.getElementById('run-sim-btn');
+            btn.innerText = "Processing...";
+            
+            setTimeout(() => {
+                let simCount = 0;
+                let simDate = new Date();
+                const start = new Date(simDate);
+                let nextRoll = new Date(simDate);
+                let simLog = [];
+
+                while (simCount < 100) {
+                    let lvl = this.getLevel(simCount);
+                    
+                    if (simDate >= nextRoll) {
+                        if (lvl === 10) {
+                            simCount++;
+                            simLog.push(`${simDate.toLocaleDateString('en-GB')}: Level 10 Ruined #${simCount}`);
+                            simDate.setMonth(simDate.getMonth() + 3);
+                            nextRoll = new Date(simDate);
+                        } else if (lvl === 9) {
+                            if (simDate.getDate() === 31) {
+                                simCount++;
+                                simLog.push(`${simDate.toLocaleDateString('en-GB')}: Level 9 Scheduled Orgasm`);
+                                simDate.setDate(simDate.getDate() + 1);
+                                nextRoll = new Date(simDate);
+                            }
+                        } else {
+                            const roll = Math.floor(Math.random() * 6) + 1;
+                            if (roll >= 5) {
+                                simCount++;
+                                const type = roll === 6 ? 'full' : 'ruined';
+                                simLog.push(`${simDate.toLocaleDateString('en-GB')}: Lvl ${lvl} ${type.toUpperCase()}`);
+                                let wait = this.getWaitPeriod(lvl, type);
+                                if (wait) {
+                                    if (wait.u === 'd') simDate.setDate(simDate.getDate() + wait.v);
+                                    if (wait.u === 'm') simDate = this.getNextMonthDate(simDate, wait.v);
+                                }
+                                nextRoll = new Date(simDate);
+                            }
+                        }
+                    }
+                    // Crucial: Only advance 1 day per loop iteration
+                    simDate.setDate(simDate.getDate() + 1);
+                    
+                    // Safety break
+                    if (simLog.length > 500) break; 
+                }
+
+                const coin = Math.random() > 0.5 ? "Heads (Final Full Orgasm)" : "Tails (Direct to Chastity)";
+                simLog.push(`${simDate.toLocaleDateString('en-GB')}: Final Coin Flip: ${coin}`);
+
+                const years = ((simDate - start) / (1000 * 60 * 60 * 24 * 365.25)).toFixed(1);
+                document.getElementById('sim-results').classList.remove('hidden');
+                document.getElementById('sim-summary').innerText = `Simulation Results: ${years} Years. Final day: ${simDate.toLocaleDateString('en-GB')}`;
+                document.getElementById('sim-log').innerHTML = simLog.reverse().map(l => `<div>${l}</div>`).join('');
+                btn.innerText = "Run Entire Game Simulation";
+            }, 100);
+        },
+
+        confirmReset() { if (confirm("Reset everything?")) { localStorage.clear(); location.reload(); } }
+    };
+
+    game.init();
+    </script>
 </body>
 </html>
